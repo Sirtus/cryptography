@@ -1,9 +1,13 @@
 from .config import CRYPTO_PADDING
 from .config import DECODINGMETHOD
+from .config import DRBG
 import hashlib
 from .objects_def import RlcePrivateKey
 from .objects_def import RlcePublicKey
+from .objects_def import HashDrbgState
 import numpy as np
+import random
+from .drgb import drbgstate_init
 
 para = {
     'n': 0,
@@ -41,6 +45,13 @@ def rlce_private_key_init():
 
 
 # private
+def rlce_public_key_init():
+    global para
+    key = RlcePublicKey(para=para, G=np.zeros((para['k'], para['n'] + para['w'] - para['k'])))
+    return key
+
+
+# private
 def get_random_bytes_from_command_line(num):
     if num > 64:
         return None
@@ -48,8 +59,6 @@ def get_random_bytes_from_command_line(num):
     mes = input(s)
     hash_object = hashlib.sha512()
     hash_object.update(mes.encode(encoding='utf-8'))
-    print(hash_object.hexdigest())
-    print(len(hash_object.hexdigest()))
     return hash_object.hexdigest()[0:num]
 
 
@@ -64,7 +73,11 @@ def rlce_keypair(scheme, filename):
         return None
 
     sk = rlce_private_key_init()
-    print(sk)
+    pk = rlce_public_key_init()
+
+    nonce = random.getrandbits(128)
+
+
     return 0
 
 
@@ -230,5 +243,43 @@ def get_rlce_parameters(scheme, padding):
     else:
         return None
     return 0
+
+
+def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, sk: RlcePrivateKey):
+    ret = 0
+    m = sk.para['GF_size']
+    n = sk.para['n']
+    k = sk.para['k']
+    w = sk.para['w']
+    t = sk.para['t']
+    nplusw = n+w
+    nminusw = n-w
+    LISTDECODE = 0
+    if 2*t > n - k:
+        LISTDECODE = 1
+    nRE = n + (4 + k) * w + 25
+    nRBforRE = (m * nRE) / 8
+    if (m * nRE) % 8 > 0:
+        nRBforRE += 1
+    nRB = nRBforRE + 4 * n + 2 * w
+    randomBytes = np.zeros(nRB)
+    pers = "PostQuantumCryptoRLCEversion2017"
+    perlen = len(pers) - 1
+    addS = "GRSbasedPostQuantumENCSchemeRLCE"
+    addlen = len(addS) - 1
+
+    if DRBG == 0:
+        noncehex = "5e7d69e187577b0433eee8eab9f77731"
+        if noncelen == 0:
+            nonce = int(noncehex, 16)
+            drgb_state = drbgstate_init(sk.para['hash_type'])
+            # TODO : finish it
+
+    elif DRBG == 1:
+        # Not implemented
+        None
+    elif DRBG == 2:
+        # Not implemented
+        None
 
 
