@@ -8,6 +8,9 @@ from .objects_def import HashDrbgState
 import numpy as np
 import random
 from .drgb import drbgstate_init
+from .byte_functions_lib import random_bytes_2_fe
+from .byte_functions_lib import get_permutation
+from .byte_functions_lib import permutation_inv
 
 para = {
     'n': 0,
@@ -282,4 +285,42 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
         # Not implemented
         None
 
+    randE = random_bytes_2_fe(randomBytes, nRBforRE, nRE, m)
+    if randE is None:
+        return None
+    per1 = get_permutation(n, n-1, randomBytes[nRBforRE:])
+    per1inv = permutation_inv(per1)
 
+    sk.perm1 = np.copy(per1inv)
+
+    ##
+    done = 0
+    error_cleared_number = 0
+    unknown_index = np.zeros(k)
+    known_index = np.zeros(k)
+    index1 = 0
+    index2 = 0
+
+    while done >= 0:
+        error_cleared_number = 0
+        index1 = 0
+        index2 = 0
+        per2 = get_permutation(nplusw, nplusw-1, randomBytes[(nRBforRE+2*n-2+done):])
+        if per2 is None:
+            return None
+        for i in range(k):
+            if per2[i] < nminusw:
+                known_index[index2] = i
+                index2 += 1
+                error_cleared_number += 1
+            else:
+                unknown_index[index1] = i
+                index1 += 1
+        remdim = k - error_cleared_number
+        if remdim <= sk.para[15]:
+            per2inv = permutation_inv(per2)
+            sk.perm2 = np.copy(per2inv)
+            done = -1
+        else:
+            done += 1
+    #GF_vecinverse(grsvec,(sk->grs)->data,n, m);
