@@ -11,6 +11,9 @@ from .drgb import drbgstate_init
 from .byte_functions_lib import random_bytes_2_fe
 from .byte_functions_lib import get_permutation
 from .byte_functions_lib import permutation_inv
+from pyfinite import ffield
+from .galois_field import GF_vecinverse
+
 
 para = {
     'n': 0,
@@ -295,11 +298,8 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
 
     ##
     done = 0
-    error_cleared_number = 0
     unknown_index = np.zeros(k)
     known_index = np.zeros(k)
-    index1 = 0
-    index2 = 0
 
     while done >= 0:
         error_cleared_number = 0
@@ -323,4 +323,7 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
             done = -1
         else:
             done += 1
-    #GF_vecinverse(grsvec,(sk->grs)->data,n, m);
+
+    grsvec = randE.copy()
+    sk.grs = GF_vecinverse(grsvec, n, m)
+    A = np.zeros(w)
