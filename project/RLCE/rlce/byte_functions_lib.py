@@ -103,9 +103,10 @@ def b2fe9(byts, blen, size):
 def b2fe10(byts, blen, size):
     if 10*size > 8*blen:
         return None
+    byts = byts.astype(int)
     bits = 0x00
     used = 0
-    fe = np.zeros(size)
+    fe = np.zeros(size, dtype=np.int32)
     j = 0
     for i in range(size):
         if used == 0:
@@ -289,7 +290,8 @@ def get_permutation(persize, t, randbytes):
 
 
 def getShortIntegers(randb, outsize):
-    out = np.zeros(outsize)
+    out = np.zeros(outsize, dtype=int)
+    randb = randb.astype(int)
     for i in range(outsize):
         out[i] = randb[2*i]
         out[i] = (out[i] << 8) & 0xFFFF
@@ -299,6 +301,7 @@ def getShortIntegers(randb, outsize):
 
 
 def permutation_inv(p):
+    p = p.astype(int)
     result = np.zeros(len(p))
     for i in range(len(p)):
         result[p[i]] = i

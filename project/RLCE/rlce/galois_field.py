@@ -8,25 +8,58 @@ fieldOrder= [0, 0, 0, 0, 0, 0, 0, 0, (1<<8)-1, (1<<9)-1, (1<<10)-1, (1<<11)-1, (
              (1<<14)-1, (1<<15)-1, (1<<16)-1]
 fieldSize=[0,0,0,0,0,0,0,0,(1<<8), (1<<9),(1<<10),(1<<11),(1<<12),(1<<13),(1<<14),(1<<15),(1<<16)]
 poly = [0,0,0,0,0,0,0,0,0x0163,0x0211,0x0409,0x0805,0x1099,0x2129,0x5803,0x8003,0x002D]
+GFlogTable = [[]]*17
+GFexpTable = [[]]*17
+
 # GFmulTable = [[None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None],
 #             [None], [None], [None], [None]]
-GFdivTable=[None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None]
+# GFdivTable=[None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None]
+
+
+def GF_init_logexp_table(m):
+    global GFlogTable
+    global GFexpTable
+    fE = 1
+    if GFlogTable[m] != []:
+        return
+    GFlogTable[m] = np.zeros(fieldSize[m], dtype=np.int8)
+    GFexpTable[m] = np.zeros(3*fieldSize[m], dtype=np.int8)
+    for j in range(fieldSize[m]):
+        GFlogTable[m][j] = fieldOrder[m]
+
+    GFexpTable[m][0] = 1
+    GFexpTable[m][fieldSize[m]] = 1
+
+    for j in range(fieldOrder[m]):
+        GFlogTable[m][fE] = j
+        GFexpTable[m][j] = fE
+        fE = fE << 1
+        if fE & fieldSize[m]:
+            fE = (fE ^ poly[m]) & (fieldOrder[m])
+    GFexpTable[m][fieldOrder[m]:2*fieldOrder[m]] = GFexpTable[m][:fieldOrder[m]]
+    GFexpTable[m][2*fieldOrder[m]:3*fieldOrder[m]] = GFexpTable[m][:fieldOrder[m]]
+    GFexpTable[m] += fieldOrder[m]
+    return
 
 
 def GF_vecinverse(vec1, vecsize, m):
     GF = ffield.FField(m)
-    log_table = GF.logarithm_table()
-    exp_table = GF.exponent_table()
-    vec2 = [exp_table[fieldOrder[m] - log_table[vec1[i]]] for i in range(vecsize)]
+    global GFlogTable
+    global GFexpTable
+    GF_init_logexp_table(m)
+    vec2 = [GFexpTable[m][fieldOrder[m] - GFlogTable[m][vec1[i]]] for i in range(vecsize)]
     return vec2
+
 
 def getMatrixAandAinv(mat, matInv, randomElements, randBytes, m):
     GF = ffield.FField(m)
-    log_table = GF.logarithm_table()
-    exp_table = GF.exponent_table()
-    mult_table = [[GF.multiply(i, j) for j in range(np.power(2, m))] for i in range(np.power(2, m))]
+    global GFlogTable
+    global GFexpTable
+    GF_init_logexp_table(m)
+    mult_table = [[GF.Multiply(i, j) for j in range(np.power(2, m))] for i in range(np.power(2, m))]
     randB = 0
     j = 0
+    # print('TS: ', randomElements)
     for i in range(randBytes):
         if randomElements[i] != 0:
             randomElements[randB] = randomElements[i]
@@ -47,7 +80,7 @@ def getMatrixAandAinv(mat, matInv, randomElements, randBytes, m):
             mat[i][1][0] = randomElements[j+2]
             mat[i][1][1] = randomElements[j+3]
 
-            a = exp_table[fieldOrder[m] - log_table[det]]
+            a = GFexpTable[fieldOrder[m] - GFlogTable[det]]
             matInv[i][0][0] = mult_table[randomElements[j + 3]][a]
             matInv[i][1][0] = mult_table[randomElements[j + 2]][a]
             j += 4
@@ -71,8 +104,6 @@ def GF_rsgenerator2optG(generator, grsE, m):
 
 def matrix_opt_mul_A(G, A, start_p, m):
     GF = ffield.FField(m)
-    log_table = GF.logarithm_table()
-    exp_table = GF.exponent_table()
     mult_table = [[GF.multiply(i, j) for j in range(np.power(2, m))] for i in range(np.power(2, m))]
     tmp1 = tmp2 = tmp3 = tmp4 = np.zeros(G.shape[1])
     if GFMULTAB == 1:
@@ -110,13 +141,14 @@ def GF_addvec(vec1, vec2, vec3=None):
 
 def GF_vecdiv(x, vec, dest, dsize, m):
     GF = ffield.FField(m)
-    exp_table = GF.exponent_table()
-    log_table = GF.logarithm_table()
+    global GFlogTable
+    global GFexpTable
+    GF_init_logexp_table(m)
     mult_table = [[GF.multiply(i, j) for j in range(np.power(2, m))] for i in range(np.power(2, m))]
     if dest == None:
         dest = vec
     if GFMULTAB == 1:
-        xinverse = exp_table[fieldOrder[m] - log_table[x]]
+        xinverse = GFexpTable[fieldOrder[m] - GFlogTable[x]]
         for i in range(dsize):
             dest[i] = mult_table[xinverse][vec[i]]
         return dest

@@ -4,10 +4,10 @@ from .config import DRBG
 import hashlib
 from .objects_def import RlcePrivateKey
 from .objects_def import RlcePublicKey
-from .objects_def import HashDrbgState
+from .objects_def import DrbgInput
 import numpy as np
 import random
-from .drgb import drbgstate_init
+from .drgb import drbgstate_init, hash_drbg
 from .byte_functions_lib import random_bytes_2_fe
 from .byte_functions_lib import get_permutation
 from .byte_functions_lib import permutation_inv
@@ -68,7 +68,8 @@ def get_random_bytes_from_command_line(num):
     if num > 64:
         return None
     s = 'Please type at least ' + str(num) + ' characters and then press ENTER\n'
-    mes = input(s)
+    # mes = input(s)
+    mes = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     hash_object = hashlib.sha512()
     hash_object.update(mes.encode(encoding='utf-8'))
     return hash_object.hexdigest()[0:num]
@@ -83,13 +84,19 @@ def rlce_keypair(scheme, filename):
     randomness = get_random_bytes_from_command_line(para['rand_in_bytes'])
     if randomness is None:
         return None
+    randomness = randomness.split()[0]
 
     sk = rlce_private_key_init()
     pk = rlce_public_key_init()
 
     nonce = random.getrandbits(128)
 
-
+    pk, sk = rlce_key_setup(randomness, nonce, 16, pk, sk)
+    print(sk)
+    with open("private_key.txt", "w") as file:
+        file.write(str(sk.G))
+    with open("public_key.txt", "w") as file:
+        file.write(str(pk.G))
     return 0
 
 
@@ -257,7 +264,7 @@ def get_rlce_parameters(scheme, padding):
     return 0
 
 
-def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, sk: RlcePrivateKey):
+def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: RlcePrivateKey):
     ret = 0
     m = sk.para['GF_size']
     n = sk.para['n']
@@ -271,33 +278,40 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
     if 2*t > n - k:
         LISTDECODE = 1
     nRE = n + (4 + k) * w + 25
-    nRBforRE = (m * nRE) / 8
+    nRBforRE = (m * nRE) // 8
     if (m * nRE) % 8 > 0:
         nRBforRE += 1
     nRB = nRBforRE + 4 * n + 2 * w
+    print(nRBforRE)
     randomBytes = np.zeros(nRB)
     pers = "PostQuantumCryptoRLCEversion2017"
-    perlen = len(pers) - 1
+    perlen = len(pers)
     addS = "GRSbasedPostQuantumENCSchemeRLCE"
-    addlen = len(addS) - 1
+    addlen = len(addS)
 
     if DRBG == 0:
         noncehex = "5e7d69e187577b0433eee8eab9f77731"
         if noncelen == 0:
             nonce = int(noncehex, 16)
-            drgb_state = drbgstate_init(sk.para['hash_type'])
-            # TODO : finish it
+            noncelen = 16
 
+        drgb_state = drbgstate_init(sk.para['hash_type'])
+        drgb_input = DrbgInput(entropy, len(entropy), nonce, noncelen, pers, perlen, addS, addlen)
+        randomBytes = hash_drbg(drbg_state=drgb_state, drbg_input=drgb_input, output=randomBytes)
+        drgb_input = None
+        drgb_state = None
+        if randomBytes is None:
+            return None
     elif DRBG == 1:
         # Not implemented
         None
     elif DRBG == 2:
         # Not implemented
         None
-
+    print(randomBytes)
     randE = random_bytes_2_fe(randomBytes, nRBforRE, nRE, m)
     if randE is None:
-        return None
+        return None, None
     per1 = get_permutation(n, n-1, randomBytes[nRBforRE:])
     per1inv = permutation_inv(per1)
 
@@ -308,13 +322,15 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
     unknown_index = np.zeros(k)
     known_index = np.zeros(k)
     per2 = None
+    remdim = 0
+
     while done >= 0:
         error_cleared_number = 0
         index1 = 0
         index2 = 0
         per2 = get_permutation(nplusw, nplusw-1, randomBytes[(nRBforRE+2*n-2+done):])
         if per2 is None:
-            return None
+            return None, None
         for i in range(k):
             if per2[i] < nminusw:
                 known_index[index2] = i
@@ -324,7 +340,7 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
                 unknown_index[index1] = i
                 index1 += 1
         remdim = k - error_cleared_number
-        if remdim <= sk.para[15]:
+        if remdim <= sk.para['u']:
             per2inv = permutation_inv(per2)
             sk.perm2 = np.copy(per2inv)
             done = -1
@@ -334,22 +350,23 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
     grsvec = randE.copy()
     sk.grs = GF_vecinverse(grsvec, n, m)
     A = np.zeros((w, 2, 2))
+    print(randE)
     A, sk.A = getMatrixAandAinv(A, sk.A, randE[n+5:], 4*w+20, m)
     if A is None:
-        return None
-
+        return None, None
     generator = Poly(n)
     if LISTDECODE == 0:
         generator = genPolyTable(n-k)
 
     G = None
     G2 = None
+    optG = None
     if OPTIMIZED == 1:
         if LISTDECODE == 0:
             optG = GF_rsgenerator2optG(generator, grsvec, m)
         else:
             # Not implemented
-            None
+            None, None
 
         tmprow = optG.copy()
         for i in range(n):
@@ -373,20 +390,71 @@ def rlce_key_setup(entropy: list, nonce: int, noncelen: int, pk: RlcePublicKey, 
     else:
         # Not implemented
         print('Not implemented OPTIMIZED /= 1')
-        return None
+        return None, None
 
     if DECODINGMETHOD == 0:
         # Not implemented
         print('Not implemented DECODINGMETHOD == 0')
-        return None
+        return None, None
     G2 = matrix_echelon(G2, m)
     if G2 is None:
         print('G2 is None')
-        return None
+        return None, None
 
     for i in range(k):
         sk.G[i] = G2[i][k]
         pk.G[i] = G2[i][k]
+
+    W = np.zeros((remdim, 2*remdim))
+    for i in range(remdim):
+        W[i][remdim+i] = 1
+    workingindexbase = 0
+    workingindex = 0
+    error_cleared_number = 0
+    listctr = 0
+    test = 1
+    notdone = 1
+    ti = 0
+
+    while notdone:
+        workingindex = workingindexbase
+        for i in range(remdim):
+            test = 1
+            while test:
+                if sk.perm2[workingindex] < k:
+                    workingindex += 1
+                    if workingindex < n-w-1:
+                        return None, None
+                else:
+                    test = 0
+            sk.S[listctr][remdim] = workingindex
+            listctr += 1
+            ti = sk.perm2[workingindex] - k
+            for j in range(remdim):
+                W[j][i] = sk.G[unknown_index[j]][ti]
+            for j in range(error_cleared_number):
+                sk.S[remdim+j][i] = sk.G[known_index[j]][ti]
+            workingindex += 1
+        ret = matrix_echelon(W, m)
+        if ret < 0:
+            workingindexbase += 1
+            listctr = 0
+            for i in range(remdim):
+                W[i][remdim] = 0
+                W[i][remdim+i] = 1
+        else:
+            notdone = 0
+    for i in range(remdim):
+        sk.S[i] = W[i][remdim]
+
+    unknown_index = None
+    known_index = None
+    G2 = None
+    per1inv = None
+    per1 = None
+    A = None
+    return pk, sk
+
 
 def genPolyTable(deg):
     p = Poly(deg + 1)
