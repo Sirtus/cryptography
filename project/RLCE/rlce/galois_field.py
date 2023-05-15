@@ -8,8 +8,8 @@ fieldOrder= [0, 0, 0, 0, 0, 0, 0, 0, (1<<8)-1, (1<<9)-1, (1<<10)-1, (1<<11)-1, (
              (1<<14)-1, (1<<15)-1, (1<<16)-1]
 fieldSize=[0,0,0,0,0,0,0,0,(1<<8), (1<<9),(1<<10),(1<<11),(1<<12),(1<<13),(1<<14),(1<<15),(1<<16)]
 poly = [0,0,0,0,0,0,0,0,0x0163,0x0211,0x0409,0x0805,0x1099,0x2129,0x5803,0x8003,0x002D]
-GFlogTable = [[]]*17
-GFexpTable = [[]]*17
+GFlogTable = [np.array([])]*17
+GFexpTable = [np.array([])]*17
 
 # GFmulTable = [[None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None], [None],
 #             [None], [None], [None], [None]]
@@ -59,7 +59,9 @@ def getMatrixAandAinv(mat, matInv, randomElements, randBytes, m):
     mult_table = [[GF.Multiply(i, j) for j in range(np.power(2, m))] for i in range(np.power(2, m))]
     randB = 0
     j = 0
-    # print('TS: ', randomElements)
+    # for i in randomElements:
+    #     print(i, end = ' ')
+    # raise Exception("aposidfjsdpaoifjsdpofij")
     for i in range(randBytes):
         if randomElements[i] != 0:
             randomElements[randB] = randomElements[i]
@@ -79,8 +81,7 @@ def getMatrixAandAinv(mat, matInv, randomElements, randBytes, m):
             mat[i][0][1] = randomElements[j+1]
             mat[i][1][0] = randomElements[j+2]
             mat[i][1][1] = randomElements[j+3]
-
-            a = GFexpTable[fieldOrder[m] - GFlogTable[det]]
+            a = GFexpTable[m][fieldOrder[m] - GFlogTable[m][det]]
             matInv[i][0][0] = mult_table[randomElements[j + 3]][a]
             matInv[i][1][0] = mult_table[randomElements[j + 2]][a]
             j += 4
@@ -93,11 +94,11 @@ def getMatrixAandAinv(mat, matInv, randomElements, randBytes, m):
 def GF_rsgenerator2optG(generator, grsE, m):
     n = generator.deg + 1
     vander = np.polynomial.polynomial.polyvander(grsE, n-1)
-    optG = np.zeros((m, n), dtype=np.int32)
-
+    optG = np.zeros((m, n))
+    print(type(generator))
     for i in range(n):
         for j in range(m):
-            optG[j][i] = generator.coef[i] * vander[j][i]
+            optG[j][i] = generator.coeff[i] * vander[j][i]
 
     return optG
 

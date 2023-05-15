@@ -308,7 +308,6 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
     elif DRBG == 2:
         # Not implemented
         None
-    print(randomBytes)
     randE = random_bytes_2_fe(randomBytes, nRBforRE, nRE, m)
     if randE is None:
         return None, None
@@ -353,6 +352,7 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
     print(randE)
     A, sk.A = getMatrixAandAinv(A, sk.A, randE[n+5:], 4*w+20, m)
     if A is None:
+        print('A is none')
         return None, None
     generator = Poly(n)
     if LISTDECODE == 0:
@@ -370,11 +370,12 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
 
         tmprow = optG.copy()
         for i in range(n):
-            optG[i] = tmprow[per1[i]]
+            print(max(per1))
+            optG[i] = tmprow[int(per1[i])]
         tmprow = np.zeros(2*w)
         for i in range(2*w):
             tmprow[i] = optG[nminusw+i]
-
+        # raise Exception('tttttt')
         for i in range(w):
             optG[nminusw+2*i] = tmprow[i]
             optG[nminusw+2*i+1] = tmprow[w+i]
@@ -391,7 +392,7 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
         # Not implemented
         print('Not implemented OPTIMIZED /= 1')
         return None, None
-
+    raise Exception('ssssss')
     if DECODINGMETHOD == 0:
         # Not implemented
         print('Not implemented DECODINGMETHOD == 0')
