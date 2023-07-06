@@ -25,8 +25,8 @@ def drbgstate_init(shatype: int):
     drgb_state.reseed_interval = 1 << 48
     drgb_state.max_B_per_req = 65536
     drgb_state.reseed_counter = 0
-    drgb_state.V = np.zeros(drgb_state.seedlen)
-    drgb_state.C = np.zeros(drgb_state.seedlen)
+    drgb_state.V = np.zeros(drgb_state.seedlen, dtype=int)
+    drgb_state.C = np.zeros(drgb_state.seedlen, dtype=int)
     return drgb_state
 
 
@@ -149,6 +149,10 @@ def hash_drbg(drbg_state: HashDrbgState, drbg_input: DrbgInput, output):
         if drbg_state is None:
             return None
         output[loop*drbg_state.max_B_per_req:loop*drbg_state.max_B_per_req+rem] = returned_bytes[:rem]
+    # print('\n\n')
+    # for x in output:
+    #     print(x, end=' ')
+    # print('\n\n')
     return output
 
 
@@ -192,12 +196,15 @@ def drbg_hash_df(shatype, input, inputlen, output, outputlen):
             hash512 = hash_obj.digest()
             if ctr == 8 * hashsize:
                 hash_obj.update(seed)
-                hash_str = hash_obj.digest()[:hashsize]
+                hash_str = hash_obj.digest()[:hashsize*8]
                 hash512 = hash_obj.digest()
                 seed[0] += 1
                 ctr = 0
-            output[i] = hash512[ctr] #(hash512[ctr//8] >> (56-(ctr % 8) * 8)) & 0xFF
+            output[i] = hash512[i%hashsize] #>> (56-(ctr % 8) * 8)) & 0xFF #(hash512[ctr//8] >> (56-(ctr % 8) * 8)) & 0xFF
             ctr += 1
-
+    # for i in output:
+    #     print(i, end=' ')
+    # print('\n')
+    # print('outlen ', outputlen)
     return output
 

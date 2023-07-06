@@ -278,7 +278,7 @@ def b2fe12(byts, blen, size):
 
 
 def get_permutation(persize, t, randbytes):
-    permutation = np.zeros(persize)
+    permutation = np.zeros(persize, dtype=int)
     for i in range(persize):
         permutation[i] = i
     random_short_integers = getShortIntegers(randbytes, t)
@@ -302,7 +302,7 @@ def getShortIntegers(randb, outsize):
 
 def permutation_inv(p):
     p = p.astype(int)
-    result = np.zeros(len(p))
+    result = np.zeros(len(p), dtype=int)
     for i in range(len(p)):
         result[p[i]] = i
     return result

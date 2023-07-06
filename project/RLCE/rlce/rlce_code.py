@@ -17,7 +17,7 @@ from .galois_field import getMatrixAandAinv
 from .field_poly import Poly
 from .config import OPTIMIZED
 from .galois_field import GF_rsgenerator2optG
-from .galois_field import matrix_opt_mul_A
+from .galois_field import matrix_opt_mul_A, matrix_mul_A
 from .galois_field import matrix_echelon
 
 
@@ -69,7 +69,7 @@ def get_random_bytes_from_command_line(num):
         return None
     s = 'Please type at least ' + str(num) + ' characters and then press ENTER\n'
     # mes = input(s)
-    mes = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    mes = 'please type at least %d characters and then press Enter'
     hash_object = hashlib.sha512()
     hash_object.update(mes.encode(encoding='utf-8'))
     return hash_object.hexdigest()[0:num]
@@ -283,7 +283,7 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
         nRBforRE += 1
     nRB = nRBforRE + 4 * n + 2 * w
     print(nRBforRE)
-    randomBytes = np.zeros(nRB)
+    randomBytes = np.zeros(nRB, dtype=int)
     pers = "PostQuantumCryptoRLCEversion2017"
     perlen = len(pers)
     addS = "GRSbasedPostQuantumENCSchemeRLCE"
@@ -302,13 +302,10 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
         drgb_state = None
         if randomBytes is None:
             return None
-    elif DRBG == 1:
-        # Not implemented
-        None
-    elif DRBG == 2:
-        # Not implemented
-        None
+
     randE = random_bytes_2_fe(randomBytes, nRBforRE, nRE, m)
+    print(len(randE))
+
     if randE is None:
         return None, None
     per1 = get_permutation(n, n-1, randomBytes[nRBforRE:])
@@ -318,8 +315,8 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
 
     ##
     done = 0
-    unknown_index = np.zeros(k)
-    known_index = np.zeros(k)
+    unknown_index = np.zeros(k, dtype=int)
+    known_index = np.zeros(k, dtype=int)
     per2 = None
     remdim = 0
 
@@ -348,9 +345,11 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
 
     grsvec = randE.copy()
     sk.grs = GF_vecinverse(grsvec, n, m)
-    A = np.zeros((w, 2, 2))
+    A = np.zeros((w, 2, 2), dtype=int)
     print(randE)
     A, sk.A = getMatrixAandAinv(A, sk.A, randE[n+5:], 4*w+20, m)
+    # print(sk.A)
+    # raise Exception('maspdifj')
     if A is None:
         print('A is none')
         return None, None
@@ -362,46 +361,79 @@ def rlce_key_setup(entropy, nonce: int, noncelen: int, pk: RlcePublicKey, sk: Rl
     G2 = None
     optG = None
     if OPTIMIZED == 1:
+        optG = np.zeros((nplusw, k), dtype=int)
         if LISTDECODE == 0:
-            optG = GF_rsgenerator2optG(generator, grsvec, m)
+            optG = GF_rsgenerator2optG(optG, generator, grsvec, m)
         else:
             # Not implemented
             None, None
 
         tmprow = optG.copy()
         for i in range(n):
-            print(max(per1))
+            # print(max(per1))
+            # print('a', len(tmprow))
             optG[i] = tmprow[int(per1[i])]
-        tmprow = np.zeros(2*w)
+            # print(int(per1[i]), tmprow[int(per1[i])])
+        tmprow = [None] * (2*w)
         for i in range(2*w):
+            # print(optG[nminusw+i]) CZEMU TU SAME ZERA?
             tmprow[i] = optG[nminusw+i]
         # raise Exception('tttttt')
         for i in range(w):
             optG[nminusw+2*i] = tmprow[i]
             optG[nminusw+2*i+1] = tmprow[w+i]
-            optG[(nminusw+2*i+1)] = randE[(n+4*w+25+k*i)]
+            optG[(nminusw+2*i+1):(nminusw+2*i+1)+k] = randE[(n+4*w+25+k*i):(n+4*w+25+k*i)+k]
+        print(type(A), ' A ', A.dtype)
+        print(type(optG), ' G ', optG.dtype)
+        A = A.astype(int)
+        # optG = optG.astype(int)
+        # print('A: ', A.shape)
         optG = matrix_opt_mul_A(optG, A, nminusw, m)
-        tmprow = optG[:nplusw]
+        # print('\n\n')
+        # for i in range(60):
+        #     for j in range(60):
+        #         print(optG[i][j], end=' ')
+        #     print()
+        # print('\n\n')
+        # raise Exception('sdfa')
+        # print('\n\n')
+        # for i in range(optG.shape[0]):
+        #     for j in range(optG.shape[1]):
+        #         print(optG[i][j], end=' ')
+        #     print()
+        # print('\n\n')
+        # raise Exception('sdfa')
+        tmprow = [None]*nplusw #optG[:nplusw]
         for i in range(nplusw):
-            optG[i] = tmprow[per2[i]]
+            tmprow[i] = optG[i]
+        for i in range(nplusw):
+            optG[i] = tmprow[int(per2[i])]
         G2 = np.zeros((k, nplusw))
+        print('k ', k, ' npls ', nplusw, ' shp ', optG.shape)
         for i in range(k):
             for j in range(nplusw):
-                G2[i, j] = optG[i, j]
+                G2[i, j] = optG[j, i]
     else:
         # Not implemented
         print('Not implemented OPTIMIZED /= 1')
         return None, None
-    raise Exception('ssssss')
-    if DECODINGMETHOD == 0:
-        # Not implemented
-        print('Not implemented DECODINGMETHOD == 0')
-        return None, None
+
+
+    G2 = G2.astype(int)
+    np.savetxt('/home/sirtus/Univ/crypto/rlce/RLCE/RLCEv1/arr1.log', G2, fmt='%d')
+    raise Exception('pdsdpfoij')
     G2 = matrix_echelon(G2, m)
+    print('\n\n')
+    for i in range(G2.shape[0]):
+        for j in range(G2.shape[1]):
+            print(G2[i][j], end=' ')
+        print()
+    print('\n\n')
+    raise Exception('sdfa')
     if G2 is None:
         print('G2 is None')
         return None, None
-
+    raise Exception('ssssss')
     for i in range(k):
         sk.G[i] = G2[i][k]
         pk.G[i] = G2[i][k]
